@@ -21,6 +21,27 @@ function ensureDir(dirPath) {
   fs.mkdirSync(dirPath, { recursive: true });
 }
 
+function gitRefExists(ref) {
+  try {
+    execFileSync("git", ["rev-parse", "--verify", "--quiet", ref], {
+      cwd: repoRoot,
+      stdio: "ignore",
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function resolveReleaseBranchRef(branchName) {
+  if (gitRefExists(branchName)) return branchName;
+  const remoteBranch = `origin/${branchName}`;
+  if (gitRefExists(remoteBranch)) return remoteBranch;
+  return branchName;
+}
+
+const releaseBranchRef = resolveReleaseBranchRef(releaseBranch);
+
 function escapeHtml(value) {
   return String(value)
     .replace(/&/g, "&amp;")
@@ -625,7 +646,7 @@ function renderVersionBlocks(markdown, release) {
 }
 
 function loadReleaseAssetYaml(relativePath) {
-  return parseYaml(gitShow(`${releaseBranch}:${relativePath}`));
+  return parseYaml(gitShow(`${releaseBranchRef}:${relativePath}`));
 }
 
 function gitListTree(branch) {
@@ -664,7 +685,7 @@ function warn(message) {
 
 function warnReleaseBranchHygiene() {
   const forbiddenPrefixes = ["topics/", "snippets/", "scripts/", "docs/"];
-  const paths = gitListTree(releaseBranch);
+  const paths = gitListTree(releaseBranchRef);
   const matches = paths.filter((filePath) => forbiddenPrefixes.some((prefix) => filePath.startsWith(prefix)));
   if (matches.length > 0) {
     warn(`Release branch '${releaseBranch}' contains paths that look like canonical content: ${matches.join(", ")}`);
@@ -764,7 +785,7 @@ function main() {
 
   const releaseLinkData = releaseBranches
     .map((branchName) => {
-      const metadata = parseYaml(gitShow(`${branchName}:assets/release-metadata.yml`));
+      const metadata = parseYaml(gitShow(`${resolveReleaseBranchRef(branchName)}:assets/release-metadata.yml`));
       return {
         dir: metadata.release,
         label: metadata.release,
