@@ -34,7 +34,7 @@ function inlineMarkdownToHtml(value) {
     .replace(/`([^`]+)`/g, "<code>$1</code>");
 }
 
-function markdownToHtml(markdown, title, release, releaseBranchName) {
+function markdownToHtml(markdown, title, release, releaseBranchName, nav = {}) {
   const lines = markdown.split("\n");
   const html = [];
   let inList = false;
@@ -91,6 +91,21 @@ function markdownToHtml(markdown, title, release, releaseBranchName) {
   flushParagraph();
   closeList();
 
+  const navHtml = nav.previous || nav.next
+    ? `
+      <nav class="topic-nav">
+        <div class="topic-nav-grid">
+          <div class="topic-nav-item">
+            ${nav.previous ? `<span class="nav-label">Previous</span><a href="./${escapeHtml(nav.previous.slug)}.html">${escapeHtml(nav.previous.title)}</a>` : `<span class="nav-empty">Start of release</span>`}
+          </div>
+          <div class="topic-nav-item topic-nav-item-right">
+            ${nav.next ? `<span class="nav-label">Next</span><a href="./${escapeHtml(nav.next.slug)}.html">${escapeHtml(nav.next.title)}</a>` : `<span class="nav-empty">End of release</span>`}
+          </div>
+        </div>
+      </nav>
+    `
+    : "";
+
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -130,6 +145,38 @@ function markdownToHtml(markdown, title, release, releaseBranchName) {
       font-size: 0.95rem;
       margin-bottom: 18px;
     }
+    .topic-nav {
+      margin-top: 28px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+    }
+    .topic-nav-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    .topic-nav-item {
+      background: #f8fbff;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 16px;
+      min-height: 56px;
+    }
+    .topic-nav-item-right {
+      text-align: right;
+    }
+    .nav-label {
+      display: block;
+      color: var(--muted);
+      font-size: 0.8rem;
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .nav-empty {
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
     a { color: var(--accent); text-decoration: none; }
     h1, h2, h3, h4, h5, h6 { line-height: 1.2; }
     ol { padding-left: 22px; }
@@ -146,18 +193,152 @@ function markdownToHtml(markdown, title, release, releaseBranchName) {
     <div class="shell">
       <div class="meta">
         <a href="../index.html">All releases</a> ·
-        <a href="./index.html">${escapeHtml(release)} index</a> ·
+        <a href="./index.html">${escapeHtml(release)} overview</a> ·
         Release branch: <code>${escapeHtml(releaseBranchName)}</code>
       </div>
       ${html.join("\n")}
+      ${navHtml}
     </div>
   </main>
 </body>
 </html>`;
 }
 
-function releaseIndexToHtml(indexMarkdown, release, releaseBranchName) {
-  return markdownToHtml(indexMarkdown, `Release ${release}`, release, releaseBranchName);
+function renderReleaseIndexHtml({ releaseMetadata, includedTopics, skippedTopics, tocSections, releaseBranchName }) {
+  const sectionHtml = tocSections.map((section) => {
+    const topicLinks = section.topics.map((topic) => `
+      <li><a href="./${escapeHtml(topic.slug)}.html">${escapeHtml(topic.title)}</a></li>
+    `).join("");
+
+    return `
+      <section class="section-card">
+        <h2>${escapeHtml(section.title)}</h2>
+        <ul>${topicLinks}</ul>
+      </section>
+    `;
+  }).join("\n");
+
+  const skippedHtml = skippedTopics.length
+    ? `<ul>${skippedTopics.map((topic) => `<li><code>${escapeHtml(topic.slug)}</code>: ${escapeHtml(topic.reason)}</li>`).join("")}</ul>`
+    : `<p>None</p>`;
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>${escapeHtml(releaseMetadata.display_name)}</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f4f7fc;
+      --panel: #ffffff;
+      --text: #172033;
+      --muted: #52607a;
+      --accent: #0b5fff;
+      --border: #d6dfef;
+      --soft: #eef4ff;
+    }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: radial-gradient(circle at top left, #edf4ff 0%, #f8fbff 30%, var(--bg) 100%);
+      color: var(--text);
+    }
+    main {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 40px 20px 72px;
+    }
+    .hero {
+      background: linear-gradient(135deg, #0b5fff 0%, #1c7ef5 100%);
+      color: white;
+      border-radius: 22px;
+      padding: 28px;
+      box-shadow: 0 18px 42px rgba(11, 95, 255, 0.22);
+    }
+    .hero p { max-width: 720px; opacity: 0.92; }
+    .pill-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 16px;
+    }
+    .pill {
+      background: rgba(255, 255, 255, 0.18);
+      border: 1px solid rgba(255, 255, 255, 0.24);
+      border-radius: 999px;
+      padding: 6px 12px;
+      font-size: 0.9rem;
+    }
+    .meta {
+      margin-top: 14px;
+      color: #dfe9ff;
+      font-size: 0.95rem;
+    }
+    .meta a { color: white; }
+    .grid {
+      display: grid;
+      gap: 18px;
+      grid-template-columns: 2fr 1fr;
+      margin-top: 24px;
+    }
+    .panel, .section-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 10px 28px rgba(20, 44, 88, 0.06);
+    }
+    .section-list {
+      display: grid;
+      gap: 16px;
+    }
+    .section-card h2, .panel h2 { margin-top: 0; }
+    ul {
+      margin: 0;
+      padding-left: 20px;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    code {
+      background: var(--soft);
+      border-radius: 6px;
+      padding: 2px 6px;
+    }
+    @media (max-width: 760px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="hero">
+      <div class="meta"><a href="../index.html">All releases</a> · Release branch: <code>${escapeHtml(releaseBranchName)}</code></div>
+      <h1>${escapeHtml(releaseMetadata.display_name)}</h1>
+      <p>Release-specific output assembled from canonical topics on <code>main</code> and packaging from <code>${escapeHtml(releaseBranchName)}</code>.</p>
+      <div class="pill-row">
+        <span class="pill">Publish path: ${escapeHtml(releaseMetadata.publish_path)}</span>
+        <span class="pill">Status: ${escapeHtml(releaseMetadata.status)}</span>
+        <span class="pill">Latest: ${escapeHtml(String(releaseMetadata.is_latest))}</span>
+        <span class="pill">${includedTopics.length} topics included</span>
+      </div>
+    </section>
+    <section class="grid">
+      <div class="section-list">
+        ${sectionHtml}
+      </div>
+      <aside class="panel">
+        <h2>Release notes</h2>
+        <p>This view is generated from branch-aware assembly. Topics not applicable to this release are filtered out automatically.</p>
+        <h2>Filtered topics</h2>
+        ${skippedHtml}
+      </aside>
+    </section>
+  </main>
+</body>
+</html>`;
 }
 
 function gitShow(branchPath) {
@@ -401,6 +582,7 @@ function main() {
 
   const includedTopics = [];
   const skippedTopics = [];
+  const includedTopicsById = new Map();
 
   for (const topicId of manifest.topics || []) {
     const topic = topicsById.get(topicId);
@@ -410,12 +592,9 @@ function main() {
     }
     if ((topic.frontmatter.lifecycle?.applies_to || []).includes(release)) {
       includedTopics.push(topic);
+      includedTopicsById.set(topic.topicId, topic);
       const renderedMarkdown = renderVersionBlocks(topic.body, release);
       fs.writeFileSync(path.join(outputDir, `${topic.slug}.md`), renderedMarkdown);
-      fs.writeFileSync(
-        path.join(siteReleaseDir, `${topic.slug}.html`),
-        markdownToHtml(renderedMarkdown, topic.frontmatter.title || topic.slug, release, releaseBranch)
-      );
     } else {
       skippedTopics.push({
         slug: topic.slug,
@@ -424,16 +603,39 @@ function main() {
     }
   }
 
-  const tocSummary = (toc.sections || [])
+  const tocSections = (toc.sections || [])
     .map((section) => {
-      const visible = (section.topics || [])
-        .filter((topicId) => includedTopics.some((topic) => topic.topicId === topicId))
-        .map((topicId) => topicsById.get(topicId)?.slug)
-        .filter(Boolean);
-      if (visible.length === 0) return null;
-      return `- ${section.title}: ${visible.join(", ")}`;
+      const topics = (section.topics || [])
+        .map((topicId) => includedTopicsById.get(topicId))
+        .filter(Boolean)
+        .map((topic) => ({
+          slug: topic.slug,
+          title: topic.frontmatter.title || topic.slug,
+          topicId: topic.topicId,
+        }));
+      if (topics.length === 0) return null;
+      return { title: section.title, topics };
     })
-    .filter(Boolean)
+    .filter(Boolean);
+
+  const topicOrder = tocSections.flatMap((section) => section.topics);
+
+  for (const [index, orderedTopic] of topicOrder.entries()) {
+    const topic = includedTopicsById.get(orderedTopic.topicId);
+    const renderedMarkdown = renderVersionBlocks(topic.body, release);
+    const previous = index > 0 ? topicOrder[index - 1] : null;
+    const next = index < topicOrder.length - 1 ? topicOrder[index + 1] : null;
+    fs.writeFileSync(
+      path.join(siteReleaseDir, `${topic.slug}.html`),
+      markdownToHtml(renderedMarkdown, topic.frontmatter.title || topic.slug, release, releaseBranch, {
+        previous,
+        next,
+      })
+    );
+  }
+
+  const tocSummary = tocSections
+    .map((section) => `- ${section.title}: ${section.topics.map((topic) => topic.slug).join(", ")}`)
     .join("\n");
 
   const index = [
@@ -459,7 +661,16 @@ function main() {
   ].join("\n");
 
   fs.writeFileSync(path.join(outputDir, "index.md"), index);
-  fs.writeFileSync(path.join(siteReleaseDir, "index.html"), releaseIndexToHtml(index, release, releaseBranch));
+  fs.writeFileSync(
+    path.join(siteReleaseDir, "index.html"),
+    renderReleaseIndexHtml({
+      releaseMetadata,
+      includedTopics: topicOrder,
+      skippedTopics,
+      tocSections,
+      releaseBranchName: releaseBranch,
+    })
+  );
   fs.writeFileSync(path.join(siteRoot, ".nojekyll"), "");
   console.log(`Built release ${release} from main + ${releaseBranch}`);
 }
