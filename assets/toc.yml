@@ -8,3 +8,6 @@ sections:
   - id: vlan
     title: VLAN
     topics: ["NET-VLAN-TASK-001"]
+  - id: proxy
+    title: Proxy
+    topics: ["NET-PROXY-TASK-001"]
