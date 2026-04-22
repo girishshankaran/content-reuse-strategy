@@ -14,8 +14,8 @@ function ensureDir(dirPath) {
   fs.mkdirSync(dirPath, { recursive: true });
 }
 
-function listReleaseBranches() {
-  const output = execFileSync("git", ["for-each-ref", "--format=%(refname:short)", "refs/heads/release"], {
+function listGitRefs(prefix) {
+  const output = execFileSync("git", ["for-each-ref", "--format=%(refname:short)", prefix], {
     cwd: repoRoot,
     encoding: "utf8",
   });
@@ -23,7 +23,20 @@ function listReleaseBranches() {
   return output
     .split("\n")
     .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function listReleaseBranches() {
+  const localBranches = listGitRefs("refs/heads/release")
     .filter((line) => line.startsWith("release/") && line.endsWith("-assets"));
+
+  if (localBranches.length > 0) {
+    return localBranches;
+  }
+
+  return listGitRefs("refs/remotes/origin/release")
+    .filter((line) => line.startsWith("origin/release/") && line.endsWith("-assets"))
+    .map((line) => line.replace(/^origin\//, ""));
 }
 
 function buildRelease(branch) {

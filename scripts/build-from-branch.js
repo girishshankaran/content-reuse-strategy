@@ -635,6 +635,29 @@ function gitListTree(branch) {
     .filter(Boolean);
 }
 
+function listGitRefs(prefix) {
+  return execFileSync("git", ["for-each-ref", "--format=%(refname:short)", prefix], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  })
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function listReleaseBranches() {
+  const localBranches = listGitRefs("refs/heads/release")
+    .filter((line) => line.startsWith("release/") && line.endsWith("-assets"));
+
+  if (localBranches.length > 0) {
+    return localBranches;
+  }
+
+  return listGitRefs("refs/remotes/origin/release")
+    .filter((line) => line.startsWith("origin/release/") && line.endsWith("-assets"))
+    .map((line) => line.replace(/^origin\//, ""));
+}
+
 function warn(message) {
   console.warn(`WARNING: ${message}`);
 }
@@ -737,13 +760,7 @@ function main() {
     .filter(Boolean);
 
   const topicOrder = tocSections.flatMap((section) => section.topics);
-  const releaseBranches = execFileSync("git", ["for-each-ref", "--format=%(refname:short)", "refs/heads/release"], {
-    cwd: repoRoot,
-    encoding: "utf8",
-  })
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line.startsWith("release/") && line.endsWith("-assets"));
+  const releaseBranches = listReleaseBranches();
 
   const releaseLinkData = releaseBranches
     .map((branchName) => {
