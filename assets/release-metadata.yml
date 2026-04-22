@@ -1,5 +1,5 @@
-release: "19.9"
-display_name: "Release 19.9"
-publish_path: "/19.9/"
+release: "20.0"
+display_name: "Release 20.0"
+publish_path: "/20.0/"
 status: supported
-is_latest: false
+is_latest: true

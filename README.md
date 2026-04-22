@@ -1,6 +1,6 @@
 # content-reuse-strategy
 
-Release asset branch for `19.9`.
+Release asset branch for `20.0`.
 
 This branch contains packaging only:
 
