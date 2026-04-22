@@ -6,6 +6,7 @@ const repoRoot = path.resolve(__dirname, "..");
 const releaseBranch = process.argv[2];
 const distRoot = path.join(repoRoot, "dist");
 const siteRoot = path.join(repoRoot, "site");
+const buildTimestamp = process.env.BUILD_TIMESTAMP || new Date().toISOString();
 
 if (!releaseBranch) {
   console.error("Usage: node scripts/build-from-branch.js <release-branch>");
@@ -91,6 +92,10 @@ function markdownToHtml(markdown, title, release, releaseBranchName, nav = {}) {
   flushParagraph();
   closeList();
 
+  const releaseSwitcherLinks = (nav.releaseLinks || [])
+    .map((item) => `<a href="../${escapeHtml(item.dir)}/index.html"${item.active ? ' class="switch-active"' : ""}>${escapeHtml(item.label)}</a>`)
+    .join("");
+
   const navHtml = nav.previous || nav.next
     ? `
       <nav class="topic-nav">
@@ -121,12 +126,49 @@ function markdownToHtml(markdown, title, release, releaseBranchName, nav = {}) {
       --muted: #52607a;
       --accent: #0b5fff;
       --border: #d6dfef;
+      --nav: #0d1b3a;
     }
     body {
       margin: 0;
       font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       background: linear-gradient(180deg, #f0f5ff 0%, var(--bg) 45%);
       color: var(--text);
+    }
+    header {
+      background: var(--nav);
+      color: white;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+    .topbar {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .brand {
+      font-weight: 700;
+      letter-spacing: 0.01em;
+    }
+    .release-switcher {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .release-switcher a {
+      color: #dfe8ff;
+      text-decoration: none;
+      padding: 5px 10px;
+      border: 1px solid rgba(255,255,255,0.18);
+      border-radius: 999px;
+      font-size: 0.9rem;
+    }
+    .release-switcher a.switch-active {
+      background: rgba(255,255,255,0.16);
+      color: white;
     }
     main {
       max-width: 860px;
@@ -177,6 +219,13 @@ function markdownToHtml(markdown, title, release, releaseBranchName, nav = {}) {
       color: var(--muted);
       font-size: 0.9rem;
     }
+    footer {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 0 20px 28px;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
     a { color: var(--accent); text-decoration: none; }
     h1, h2, h3, h4, h5, h6 { line-height: 1.2; }
     ol { padding-left: 22px; }
@@ -189,6 +238,14 @@ function markdownToHtml(markdown, title, release, releaseBranchName, nav = {}) {
   </style>
 </head>
 <body>
+  <header>
+    <div class="topbar">
+      <div class="brand">content-reuse-strategy</div>
+      <nav class="release-switcher">
+        ${releaseSwitcherLinks}
+      </nav>
+    </div>
+  </header>
   <main>
     <div class="shell">
       <div class="meta">
@@ -200,11 +257,17 @@ function markdownToHtml(markdown, title, release, releaseBranchName, nav = {}) {
       ${navHtml}
     </div>
   </main>
+  <footer>
+    Source branch: <code>${escapeHtml(releaseBranchName)}</code> · Built at <code>${escapeHtml(buildTimestamp)}</code>
+  </footer>
 </body>
 </html>`;
 }
 
 function renderReleaseIndexHtml({ releaseMetadata, includedTopics, skippedTopics, tocSections, releaseBranchName }) {
+  const releaseSwitcherLinks = (releaseMetadata.release_links || [])
+    .map((item) => `<a href="../${escapeHtml(item.dir)}/index.html"${item.active ? ' class="switch-active"' : ""}>${escapeHtml(item.label)}</a>`)
+    .join("");
   const sectionHtml = tocSections.map((section) => {
     const topicLinks = section.topics.map((topic) => `
       <li><a href="./${escapeHtml(topic.slug)}.html">${escapeHtml(topic.title)}</a></li>
@@ -238,12 +301,49 @@ function renderReleaseIndexHtml({ releaseMetadata, includedTopics, skippedTopics
       --accent: #0b5fff;
       --border: #d6dfef;
       --soft: #eef4ff;
+      --nav: #0d1b3a;
     }
     body {
       margin: 0;
       font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       background: radial-gradient(circle at top left, #edf4ff 0%, #f8fbff 30%, var(--bg) 100%);
       color: var(--text);
+    }
+    header {
+      background: var(--nav);
+      color: white;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+    .topbar {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .brand {
+      font-weight: 700;
+      letter-spacing: 0.01em;
+    }
+    .release-switcher {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .release-switcher a {
+      color: #dfe8ff;
+      text-decoration: none;
+      padding: 5px 10px;
+      border: 1px solid rgba(255,255,255,0.18);
+      border-radius: 999px;
+      font-size: 0.9rem;
+    }
+    .release-switcher a.switch-active {
+      background: rgba(255,255,255,0.16);
+      color: white;
     }
     main {
       max-width: 980px;
@@ -310,9 +410,24 @@ function renderReleaseIndexHtml({ releaseMetadata, includedTopics, skippedTopics
         grid-template-columns: 1fr;
       }
     }
+    footer {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 0 20px 28px;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
   </style>
 </head>
 <body>
+  <header>
+    <div class="topbar">
+      <div class="brand">content-reuse-strategy</div>
+      <nav class="release-switcher">
+        ${releaseSwitcherLinks}
+      </nav>
+    </div>
+  </header>
   <main>
     <section class="hero">
       <div class="meta"><a href="../index.html">All releases</a> · Release branch: <code>${escapeHtml(releaseBranchName)}</code></div>
@@ -337,6 +452,9 @@ function renderReleaseIndexHtml({ releaseMetadata, includedTopics, skippedTopics
       </aside>
     </section>
   </main>
+  <footer>
+    Source branch: <code>${escapeHtml(releaseBranchName)}</code> · Built at <code>${escapeHtml(buildTimestamp)}</code>
+  </footer>
 </body>
 </html>`;
 }
@@ -619,6 +737,24 @@ function main() {
     .filter(Boolean);
 
   const topicOrder = tocSections.flatMap((section) => section.topics);
+  const releaseBranches = execFileSync("git", ["for-each-ref", "--format=%(refname:short)", "refs/heads/release"], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  })
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith("release/") && line.endsWith("-assets"));
+
+  const releaseLinkData = releaseBranches
+    .map((branchName) => {
+      const metadata = parseYaml(gitShow(`${branchName}:assets/release-metadata.yml`));
+      return {
+        dir: metadata.release,
+        label: metadata.release,
+        active: branchName === releaseBranch,
+      };
+    })
+    .sort((left, right) => left.dir.localeCompare(right.dir, undefined, { numeric: true }));
 
   for (const [index, orderedTopic] of topicOrder.entries()) {
     const topic = includedTopicsById.get(orderedTopic.topicId);
@@ -630,6 +766,7 @@ function main() {
       markdownToHtml(renderedMarkdown, topic.frontmatter.title || topic.slug, release, releaseBranch, {
         previous,
         next,
+        releaseLinks: releaseLinkData,
       })
     );
   }
@@ -664,7 +801,10 @@ function main() {
   fs.writeFileSync(
     path.join(siteReleaseDir, "index.html"),
     renderReleaseIndexHtml({
-      releaseMetadata,
+      releaseMetadata: {
+        ...releaseMetadata,
+        release_links: releaseLinkData,
+      },
       includedTopics: topicOrder,
       skippedTopics,
       tocSections,

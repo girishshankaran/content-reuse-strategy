@@ -63,6 +63,8 @@ function renderRootIndex(releases) {
     })
     .join("\n");
 
+  const generatedAt = new Date().toISOString();
+
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -78,12 +80,41 @@ function renderRootIndex(releases) {
       --muted: #52607a;
       --accent: #0b5fff;
       --border: #d6dfef;
+      --nav: #0d1b3a;
     }
     body {
       margin: 0;
       font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       background: linear-gradient(180deg, #eef4ff 0%, var(--bg) 40%);
       color: var(--text);
+    }
+    header {
+      background: var(--nav);
+      color: white;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+    .topbar {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .brand {
+      font-weight: 700;
+      letter-spacing: 0.01em;
+    }
+    .topbar-nav {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .topbar-nav a {
+      color: #dfe8ff;
+      text-decoration: none;
+      font-size: 0.95rem;
     }
     main {
       max-width: 900px;
@@ -125,9 +156,24 @@ function renderRootIndex(releases) {
       border-radius: 6px;
       padding: 2px 6px;
     }
+    footer {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 0 20px 32px;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
   </style>
 </head>
 <body>
+  <header>
+    <div class="topbar">
+      <div class="brand">content-reuse-strategy</div>
+      <nav class="topbar-nav">
+        ${releases.map((release) => `<a href="./${release.releaseDir}/index.html">${release.releaseLabel}</a>`).join("")}
+      </nav>
+    </div>
+  </header>
   <main>
     <h1>content-reuse-strategy</h1>
     <p class="lead">Single-repo Option 2 proof of concept. Canonical topics live on <code>main</code>; release packaging lives on <code>release/*-assets</code> branches; GitHub Actions assembles and publishes the site.</p>
@@ -135,6 +181,9 @@ function renderRootIndex(releases) {
       ${cards}
     </section>
   </main>
+  <footer>
+    Built from <code>main</code> and release asset branches. Generated at <code>${generatedAt}</code>.
+  </footer>
 </body>
 </html>`;
 }
