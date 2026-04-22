@@ -188,14 +188,34 @@ function loadReleaseAssetYaml(relativePath) {
   return parseYaml(gitShow(`${releaseBranch}:${relativePath}`));
 }
 
+function gitListTree(branch) {
+  return execFileSync("git", ["ls-tree", "-r", "--name-only", branch], { cwd: repoRoot, encoding: "utf8" })
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function warn(message) {
+  console.warn(`WARNING: ${message}`);
+}
+
+function warnReleaseBranchHygiene() {
+  const forbiddenPrefixes = ["topics/", "snippets/", "scripts/", "docs/"];
+  const paths = gitListTree(releaseBranch);
+  const matches = paths.filter((filePath) => forbiddenPrefixes.some((prefix) => filePath.startsWith(prefix)));
+  if (matches.length > 0) {
+    warn(`Release branch '${releaseBranch}' contains paths that look like canonical content: ${matches.join(", ")}`);
+  }
+}
+
 function validateRelease(topicsById, manifest, toc) {
-  const errors = [];
+  const warnings = [];
   const manifestTopicIds = manifest.topics || [];
   const tocTopicIds = new Set();
 
   for (const topicId of manifestTopicIds) {
     if (!topicsById.has(topicId)) {
-      errors.push(`Manifest topic_id '${topicId}' does not exist on main`);
+      warnings.push(`Manifest topic_id '${topicId}' does not exist on main`);
     }
   }
 
@@ -203,22 +223,22 @@ function validateRelease(topicsById, manifest, toc) {
     for (const topicId of section.topics || []) {
       tocTopicIds.add(topicId);
       if (!topicsById.has(topicId)) {
-        errors.push(`TOC topic_id '${topicId}' does not exist on main`);
+        warnings.push(`TOC topic_id '${topicId}' does not exist on main`);
       }
       if (!manifestTopicIds.includes(topicId)) {
-        errors.push(`TOC topic_id '${topicId}' is missing from manifests/book.yml`);
+        warnings.push(`TOC topic_id '${topicId}' is missing from manifests/book.yml`);
       }
     }
   }
 
   for (const topicId of manifestTopicIds) {
     if (!tocTopicIds.has(topicId)) {
-      errors.push(`Manifest topic_id '${topicId}' is missing from assets/toc.yml`);
+      warnings.push(`Manifest topic_id '${topicId}' is missing from assets/toc.yml`);
     }
   }
 
-  if (errors.length > 0) {
-    throw new Error(errors.join("\n"));
+  for (const message of warnings) {
+    warn(message);
   }
 }
 
@@ -230,6 +250,7 @@ function main() {
   const releaseMetadata = loadReleaseAssetYaml("assets/release-metadata.yml");
   const release = releaseMetadata.release;
 
+  warnReleaseBranchHygiene();
   validateRelease(topicsById, manifest, toc);
 
   const outputDir = path.join(distRoot, release);
@@ -240,6 +261,10 @@ function main() {
 
   for (const topicId of manifest.topics || []) {
     const topic = topicsById.get(topicId);
+    if (!topic) {
+      warn(`Skipping missing topic_id '${topicId}'`);
+      continue;
+    }
     if ((topic.frontmatter.lifecycle?.applies_to || []).includes(release)) {
       includedTopics.push(topic);
       fs.writeFileSync(path.join(outputDir, `${topic.slug}.md`), renderVersionBlocks(topic.body, release));

@@ -40,6 +40,8 @@ Generated output is written to:
 dist/<release>/
 ```
 
+The build performs validation checks, but they are reported as warnings so the POC can still assemble partial output.
+
 ## Purpose
 
 This POC shows that:
