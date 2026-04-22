@@ -5,6 +5,7 @@ const { execFileSync } = require("child_process");
 const repoRoot = path.resolve(__dirname, "..");
 const releaseBranch = process.argv[2];
 const distRoot = path.join(repoRoot, "dist");
+const siteRoot = path.join(repoRoot, "site");
 
 if (!releaseBranch) {
   console.error("Usage: node scripts/build-from-branch.js <release-branch>");
@@ -17,6 +18,146 @@ function readText(filePath) {
 
 function ensureDir(dirPath) {
   fs.mkdirSync(dirPath, { recursive: true });
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function inlineMarkdownToHtml(value) {
+  return escapeHtml(value)
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/`([^`]+)`/g, "<code>$1</code>");
+}
+
+function markdownToHtml(markdown, title, release, releaseBranchName) {
+  const lines = markdown.split("\n");
+  const html = [];
+  let inList = false;
+  let paragraph = [];
+
+  function flushParagraph() {
+    if (paragraph.length === 0) {
+      return;
+    }
+    html.push(`<p>${inlineMarkdownToHtml(paragraph.join(" "))}</p>`);
+    paragraph = [];
+  }
+
+  function closeList() {
+    if (inList) {
+      html.push("</ol>");
+      inList = false;
+    }
+  }
+
+  for (const rawLine of lines) {
+    const line = rawLine.trimEnd();
+    const trimmed = line.trim();
+
+    if (!trimmed) {
+      flushParagraph();
+      closeList();
+      continue;
+    }
+
+    const heading = trimmed.match(/^(#{1,6})\s+(.+)$/);
+    if (heading) {
+      flushParagraph();
+      closeList();
+      const level = heading[1].length;
+      html.push(`<h${level}>${inlineMarkdownToHtml(heading[2])}</h${level}>`);
+      continue;
+    }
+
+    const listItem = trimmed.match(/^\d+\.\s+(.+)$/);
+    if (listItem) {
+      flushParagraph();
+      if (!inList) {
+        html.push("<ol>");
+        inList = true;
+      }
+      html.push(`<li>${inlineMarkdownToHtml(listItem[1])}</li>`);
+      continue;
+    }
+
+    paragraph.push(trimmed);
+  }
+
+  flushParagraph();
+  closeList();
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>${escapeHtml(title)} | ${escapeHtml(release)}</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f8fc;
+      --panel: #ffffff;
+      --text: #172033;
+      --muted: #52607a;
+      --accent: #0b5fff;
+      --border: #d6dfef;
+    }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(180deg, #f0f5ff 0%, var(--bg) 45%);
+      color: var(--text);
+    }
+    main {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 40px 20px 64px;
+    }
+    .shell {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px 28px;
+      box-shadow: 0 12px 34px rgba(17, 36, 73, 0.08);
+    }
+    .meta {
+      color: var(--muted);
+      font-size: 0.95rem;
+      margin-bottom: 18px;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    h1, h2, h3, h4, h5, h6 { line-height: 1.2; }
+    ol { padding-left: 22px; }
+    code {
+      background: #eef3fb;
+      border-radius: 6px;
+      padding: 2px 6px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="shell">
+      <div class="meta">
+        <a href="../index.html">All releases</a> ·
+        <a href="./index.html">${escapeHtml(release)} index</a> ·
+        Release branch: <code>${escapeHtml(releaseBranchName)}</code>
+      </div>
+      ${html.join("\n")}
+    </div>
+  </main>
+</body>
+</html>`;
+}
+
+function releaseIndexToHtml(indexMarkdown, release, releaseBranchName) {
+  return markdownToHtml(indexMarkdown, `Release ${release}`, release, releaseBranchName);
 }
 
 function gitShow(branchPath) {
@@ -254,7 +395,9 @@ function main() {
   validateRelease(topicsById, manifest, toc);
 
   const outputDir = path.join(distRoot, release);
+  const siteReleaseDir = path.join(siteRoot, release);
   ensureDir(outputDir);
+  ensureDir(siteReleaseDir);
 
   const includedTopics = [];
   const skippedTopics = [];
@@ -267,7 +410,12 @@ function main() {
     }
     if ((topic.frontmatter.lifecycle?.applies_to || []).includes(release)) {
       includedTopics.push(topic);
-      fs.writeFileSync(path.join(outputDir, `${topic.slug}.md`), renderVersionBlocks(topic.body, release));
+      const renderedMarkdown = renderVersionBlocks(topic.body, release);
+      fs.writeFileSync(path.join(outputDir, `${topic.slug}.md`), renderedMarkdown);
+      fs.writeFileSync(
+        path.join(siteReleaseDir, `${topic.slug}.html`),
+        markdownToHtml(renderedMarkdown, topic.frontmatter.title || topic.slug, release, releaseBranch)
+      );
     } else {
       skippedTopics.push({
         slug: topic.slug,
@@ -311,6 +459,8 @@ function main() {
   ].join("\n");
 
   fs.writeFileSync(path.join(outputDir, "index.md"), index);
+  fs.writeFileSync(path.join(siteReleaseDir, "index.html"), releaseIndexToHtml(index, release, releaseBranch));
+  fs.writeFileSync(path.join(siteRoot, ".nojekyll"), "");
   console.log(`Built release ${release} from main + ${releaseBranch}`);
 }
 
